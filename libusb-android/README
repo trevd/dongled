@@ -1,0 +1,16 @@
+Libusb 1.x Tweaked for Robots
+-----------------------------
+
+Apart from adding the Android.mk 
+
+the following was added to libusb/io.c
+
+#define TIMESPEC_TO_TIMEVAL(tv, ts)                                     \
+        do {                                                            \
+                (tv)->tv_sec = (ts)->tv_sec;                            \
+                (tv)->tv_usec = (ts)->tv_nsec / 1000;                   \
+        } while (0)
+
+
+
+
