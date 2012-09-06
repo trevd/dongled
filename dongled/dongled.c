@@ -14,9 +14,9 @@
 #include <cutils/log.h>
 #include <sys/stat.h>
 #include <cutils/properties.h>
-#include <libusb-android/libusb/libusb.h>
+#include <libusb-0.1.12/usb.h>
 #include "uevent.h"
-#include "usb_modeswitch.h"
+
 
 void die(char *s);
 
