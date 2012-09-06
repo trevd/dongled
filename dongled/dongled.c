@@ -16,8 +16,6 @@
 #include <cutils/properties.h>
 #include <libusb-0.1.12/usb.h>
 #include "uevent.h"
-
-
 void die(char *s);
 
 struct hotplug_info {

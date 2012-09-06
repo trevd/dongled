@@ -110,6 +110,18 @@ int usb_send_message(usb_dev_handle* usb_device_handle,char* message,int message
 	return 0;
 }
 
+void usb_switch_huawei_mode( usb_dev_handle* usb_device_handle)
+{
+	int ret;
+	char buffer[BUF_SIZE];
+	ALOGD("Sending Huawei control message ...\n");
+	ret = usb_control_msg(usb_device_handle, USB_TYPE_STANDARD + USB_RECIP_DEVICE, USB_REQ_SET_FEATURE, 00000001, 0, buffer, 0, 1000);
+	if (ret != 0) {
+		ALOGD( "Error: sending Huawei control message failed (error %d). Aborting.\n\n", ret);
+		return;
+	} else
+		ALOGD(" OK, Huawei control message sent\n");
+}
 int usb_switch_send_message (usb_dev_handle* usb_device_handle,int inquire_device,int switch_configuration_index,int interface,int message_endpoint,int response_endpoint)
 {
 	const char* command_header = "55534243";
@@ -340,8 +352,8 @@ int get_usb_device_configuration(struct usb_dev_handle* device_handle)
 	return 0;
 }
 int get_usb_switch_configuration_index(int vendor,int product)
-{	
-	int counter = 0,totalconfigs=2, returnvalue =-1;
+{	int totalconfigs = sizeof switch_configurations / sizeof switch_configurations[0] ;
+	int counter = 0, returnvalue =-1;
 	for(counter =0; counter < totalconfigs ;counter ++)
 	{
 		if((switch_configurations[counter].vendor==vendor) && (switch_configurations[counter].product==product))
