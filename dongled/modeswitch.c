@@ -389,6 +389,8 @@ struct usb_device* get_usb_device(int vendor,int product)
     	}
     	return return_device;
 }
+
+
 // This is where the modeswitching magic happens - we want to encapulate the usb_modeswitching logic
 // into this function which is called from handle_uevent in uevent.c  
 void process_add_usb_device_uevent(int vendor,int product)
@@ -435,4 +437,21 @@ void process_add_usb_device_uevent(int vendor,int product)
 		return ;
 	}
 	return;
+}
+void check_usb_devices()
+{
+	struct usb_bus *busses;
+	struct usb_bus *bus;
+	usb_find_busses();
+    	usb_find_devices();    
+    	busses = usb_get_busses();
+   	for (bus = busses; bus; bus = bus->next) {
+    		struct usb_device *dev;
+    		for (dev = bus->devices; dev; dev = dev->next) {
+    			/* Check if this device is a printer */
+			ALOGD("Checking Device %04x_%04x",dev->descriptor.idVendor,dev->descriptor.idProduct);
+			process_add_usb_device_uevent(dev->descriptor.idVendor,dev->descriptor.idProduct);
+    		}
+    	}
+    	return;
 }

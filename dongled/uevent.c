@@ -85,11 +85,23 @@ static void handle_uevent(struct uevent *uevent)
 					return ; // No Subsystem and No type means nothing doing
 				}else if( !strncmp(uevent->subsystem,"tty",strlen(uevent->subsystem))){
 					// got a tty subsystem
-					if(!strncmp(uevent->name,"ttyUSB0",7)){
+					if(!strncmp(uevent->name,"ttyUSB0",strlen(uevent->name))){
 						property_set("ril.pppd_tty", "/dev/ttyUSB0");
 						return ;
 					}
-					if(!strncmp(uevent->name,"ttyUSB2",7))	{
+					if(!strncmp(uevent->name,"ttyHS4",strlen(uevent->name)) ){
+						property_set("ril.pppd_tty", "/dev/ttyHS4");
+						return ;
+					}
+					if(!strncmp(uevent->name,"ttyHS3",strlen(uevent->name))){
+						property_set("rild.libargs", "-d /dev/ttyHS3");
+						property_set("rild.libpath", "/system/lib/libtcl-ril.so");
+						stop_service("ril-daemon");
+						sleep(1);
+						start_service("ril-daemon");
+						return ;
+					}
+					if(!strncmp(uevent->name,"ttyUSB2",strlen(uevent->name)))	{
 						property_set("rild.libargs", "-d /dev/ttyUSB2");
 						property_set("rild.libpath", "/system/lib/libhuaweigeneric-ril.so");
 						stop_service("ril-daemon");

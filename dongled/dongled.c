@@ -13,9 +13,12 @@
 #include <string.h>
 #include <cutils/log.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #include <cutils/properties.h>
 #include <libusb-0.1.12/usb.h>
 #include "uevent.h"
+void check_usb_devices();
+pthread_t s_tid_coldboot;
 void die(char *s);
 
 struct hotplug_info {
@@ -129,20 +132,19 @@ static void parse_hotplug_info(struct hotplug_info *hotplug_info)
 	hotplug_info->debug =atoi(debug);
 }
 
-
-int coldboot(int print_list,const char * modeswitch_d){
+static void *coldboot(void *param){
 		
 	// This needs to be fired off on another thread
+	ALOGI("Dongled Service ColdBoot\n");
+	check_usb_devices();
 	return 0;
 
 }
+
 int main(int argc, char *argv[])
 {
 	usb_init();
-	 //get_usb_devices();
-	//print_configs();
-	//ALOGD("Long:%ld",res);
-	//return 0;
+	 pthread_create(&s_tid_coldboot, NULL, coldboot, NULL);
 	ALOGI("Dongled Service Start argc:%d\n",argc);
 	start_uevent_polling();
 	return 0;
