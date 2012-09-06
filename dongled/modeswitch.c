@@ -173,8 +173,8 @@ int usb_switch_send_message (usb_dev_handle* usb_device_handle,int inquire_devic
 
 skip:
 	ALOGD(" Device is gone, skipping any further commands\n");
-	usb_close(usb_device_handle);
-	usb_device_handle = 0;
+	//usb_close(usb_device_handle);
+	//usb_device_handle = 0;
 	return 2;
 }
 int detach_device_driver(usb_dev_handle* usb_device_handle,int interface)
