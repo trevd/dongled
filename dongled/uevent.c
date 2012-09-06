@@ -119,23 +119,11 @@ static void handle_uevent(struct uevent *uevent)
 					// there is another option of handling the uevent->type = "usb_interface"
 					// but that is fired multiple times where as usb_device is raised once
 					sleep(2);
-					
-					// convert the vendor and product to int, this is more convient
-					// than messing around with strings
+					// convert the vendor and product to int, this is more convient than messing around with strings
 					int vendor = get_int_from_hexstring(uevent->vendor_id);
 					int product = get_int_from_hexstring(uevent->product_id);
 					process_add_usb_device_uevent(vendor,product);
 					return ;
-					
-					//if(!strncmp(uevent->vendor_id,"12d1",strlen(uevent->vendor_id)))
-					//	if(!strncmp(uevent->product_id,"1c0b",strlen(uevent->product_id)))
-					//	{
-					//		sleep(1); // Take a moment
-					//		char * argv[] = { "usb_modeswitch","-v0x12d1","-p0x1c0b","-c/etc/usb_modeswitch/12d1_1c0b" } ;
-					//		write_uevent_logcat(uevent,uevent->type);
-					//		 get_usb_devices();
-					//		usb_modeswitch_main(4,argv);
-					//	}
 				}
 			}
 		}
