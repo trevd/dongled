@@ -62,8 +62,10 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
+   uevent.c \
    dongled.c \
-   usb_modeswitch.c
+   usb_modeswitch.c \
+
    
 LOCAL_C_INCLUDES += \
   $(LOCAL_PATH) \

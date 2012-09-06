@@ -266,7 +266,7 @@ int readArguments(int argc, char **argv)
 	{
 		printHelp();
 		printVersion();
-		exit(1);
+		return 1;
 	}
 
 	while (1)
@@ -328,18 +328,18 @@ int readArguments(int argc, char **argv)
 
 			case 'e':
 				printVersion();
-				exit(0);
+				return 0;
 				break;
 			case 'h':
 				printVersion();
 				printHelp();
-				exit(0);
+				return 0;
 				break;
 
 			default: /* Unsupported - error message has already been printed */
 				fprintf (output,"\n");
 				printHelp();
-				exit(1);
+				return 1;
 		}
 	}
 
@@ -347,11 +347,11 @@ int readArguments(int argc, char **argv)
 }
 
 
-int main(int argc, char **argv)
+int usb_modeswitch_main(int argc, char **argv)
 {
 	int numDefaults=0, specialMode=0, sonySuccess=0;
 	int currentConfig=0, defaultClass=0, interfaceClass=0;
-
+        fprintf(stdout,"Parameters:%d Name:%s",argc, argv[0]);
 
 	/* Make sure we have empty strings even if not set by config */
 	TargetProductList[0] = '\0';
@@ -363,7 +363,7 @@ int main(int argc, char **argv)
 //	output=fopen("/dev/console", "w");
 	output=stdout;
 
-	signal(SIGTERM, release_usb_device);
+	//signal(SIGTERM, release_usb_device);
 
 	/*
 	 * Parameter parsing, USB preparation/diagnosis, plausibility checks
@@ -387,16 +387,16 @@ int main(int argc, char **argv)
 	/* Some sanity checks. The default IDs are mandatory */
 	if (!(DefaultVendor && DefaultProduct)) {
 		SHOW_PROGRESS(output,"No default vendor/product ID given. Aborting.\n\n");
-		exit(1);
+		return 1;
 	}
 	if (strlen(MessageContent)) {
 		if (strlen(MessageContent) % 2 != 0) {
 			fprintf(stderr, "Error: MessageContent hex string has uneven length. Aborting.\n\n");
-			exit(1);
+			return 1;
 		}
 		if ( hexstr2bin(MessageContent, ByteString, strlen(MessageContent)/2) == -1) {
 			fprintf(stderr, "Error: MessageContent %s\n is not a hex string. Aborting.\n\n", MessageContent);
-			exit(1);
+			return 1;
 		}
 	}
 	SHOW_PROGRESS(output,"\n");
@@ -413,14 +413,14 @@ int main(int argc, char **argv)
 			printf("Note: target parameter missing; success check limited\n");
 
 	/* libusb initialization */
-	usb_init();
+	//usb_init();
 
 	if (verbose)
 		usb_set_debug(15);
 
-	usb_find_busses();
-	usb_find_devices();
-
+	int busses = usb_find_busses();
+	int devices = usb_find_devices();
+	SHOW_PROGRESS(output,"Looking for target devices ...\n");
 	/* Count existing target devices, remember for success check */
 	if ((TargetVendor || TargetClass) && searchMode != SEARCH_BUSDEV) {
 		SHOW_PROGRESS(output,"Looking for target devices ...\n");
@@ -438,11 +438,11 @@ int main(int argc, char **argv)
 		SHOW_PROGRESS(output," Found device in default mode, class or configuration (%d)\n", numDefaults);
 	} else {
 		SHOW_PROGRESS(output," No devices in default mode found. Nothing to do. Bye.\n\n");
-		exit(0);
+		return 0;
 	}
 	if (dev == NULL) {
 		SHOW_PROGRESS(output," No bus/device match. Is device connected? Bye.\n\n");
-		exit(0);
+		return 0;
 	} else {
 		if (devnum == -1) {
 			devnum = dev->devnum;
@@ -452,7 +452,7 @@ int main(int argc, char **argv)
 		devh = usb_open(dev);
 		if (devh == NULL) {
 			SHOW_PROGRESS(output,"Error opening the device. Aborting.\n\n");
-			exit(1);
+			return 1;
 		}
 	}
 
@@ -480,7 +480,7 @@ int main(int argc, char **argv)
 	interfaceClass = get_interface_class(dev, currentConfig, Interface);
 	if (interfaceClass == -1) {
 		fprintf(stderr, "Error: getting the class of interface %d failed. Does it exist? Aborting.\n\n",Interface);
-		exit(1);
+		return 1;
 	}
 
 	if (defaultClass == 0)
@@ -496,7 +496,7 @@ int main(int argc, char **argv)
 		if (defaultClass != 8) {
 			fprintf(stderr, "Error: can't use storage command in MessageContent with interface %d;\n"
 				"       interface class is %d, should be 8. Aborting.\n\n", Interface, defaultClass);
-			exit(1);
+			return 1;
 		}
 
 	/* Check or get endpoints */
@@ -505,13 +505,13 @@ int main(int argc, char **argv)
 			MessageEndpoint = find_first_bulk_output_endpoint(dev);
 		if (!MessageEndpoint) {
 			fprintf(stderr,"Error: message endpoint not given or found. Aborting.\n\n");
-			exit(1);
+			return 1;
 		}
 		if (!ResponseEndpoint)
 			ResponseEndpoint = find_first_bulk_input_endpoint(dev);
 		if (!ResponseEndpoint) {
 			fprintf(stderr,"Error: response endpoint not given or found. Aborting.\n\n");
-			exit(1);
+			return 1;
 		}
 		SHOW_PROGRESS(output,"Using endpoints 0x%02x (out) and 0x%02x (in)\n", MessageEndpoint, ResponseEndpoint);
 	}
@@ -547,7 +547,7 @@ int main(int argc, char **argv)
 		+ SequansMode + MobileActionMode + CiscoMode;
 	if ( specialMode > 1 ) {
 		SHOW_PROGRESS(output,"Invalid mode combination. Check your configuration. Aborting.\n\n");
-		exit(1);
+		return 1;
 	}
 
 	if ( !specialMode && !strlen(MessageContent) && AltSetting == -1 && Configuration == 0 )
@@ -608,9 +608,13 @@ int main(int argc, char **argv)
 	}
 
 	if (strlen(MessageContent) && MessageEndpoint) {
+		SHOW_PROGRESS(output,"Using this branch\n");
 		if (specialMode == 0) {
-			if (InquireDevice != 2)
+			SHOW_PROGRESS(output,"Special Mode = 0\n");
+			if (InquireDevice != 2){
+				SHOW_PROGRESS(output,"InquireDevice != 2\n");
 				detachDriver();
+			}
 			switchSendMessage();
 		} else
 			SHOW_PROGRESS(output,"Warning: ignoring MessageContent. Can't combine with special mode\n");
@@ -687,7 +691,7 @@ CLOSING:
 		closelog();
 	if (devh)
 		usb_close(devh);
-	exit(0);
+	return 0;
 }
 
 
@@ -840,15 +844,17 @@ int switchSendMessage ()
 	/* May be activated in future versions */
 //	if (MessageContent2[0] != '\0' || MessageContent3[0] != '\0')
 //		NeedResponse = 1;
-
+	SHOW_PROGRESS(output,"switchSendMessage\n");
 	SHOW_PROGRESS(output,"Setting up communication with interface %d\n", Interface);
 	if (InquireDevice != 2) {
+		SHOW_PROGRESS(output,"Inq !=2\n");
 		ret = usb_claim_interface(devh, Interface);
 		if (ret != 0) {
 			SHOW_PROGRESS(output," Could not claim interface (error %d). Skipping message sending\n", ret);
 			return 0;
 		}
 	}
+	SHOW_PROGRESS(output,"Msg=%s\n",msg[0]);
 	usb_clear_halt(devh, MessageEndpoint);
 	SHOW_PROGRESS(output,"Using endpoint 0x%02x for message sending ...\n", MessageEndpoint);
 	if (show_progress)
@@ -946,7 +952,7 @@ void switchHuaweiMode ()
 	ret = usb_control_msg(devh, USB_TYPE_STANDARD + USB_RECIP_DEVICE, USB_REQ_SET_FEATURE, 00000001, 0, buffer, 0, 1000);
 	if (ret != 0) {
 		fprintf(stderr, "Error: sending Huawei control message failed (error %d). Aborting.\n\n", ret);
-		exit(1);
+		return;
 	} else
 		SHOW_PROGRESS(output," OK, Huawei control message sent\n");
 }
@@ -964,7 +970,7 @@ void switchSierraMode ()
 	}
 	if (ret != 0) {
 		fprintf(stderr, "Error: sending Sierra control message failed (error %d). Aborting.\n\n", ret);
-	    exit(1);
+	    return ;
 	} else
 		SHOW_PROGRESS(output," OK, Sierra control message sent\n");
 }
@@ -996,7 +1002,7 @@ int switchKobilMode() {
 	ret = usb_control_msg(devh, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, 0x88, 0, 0, buffer, 8, 1000);
 	if (ret != 0) {
 		fprintf(stderr, "Error: sending Kobil control message failed (error %d). Aborting.\n\n", ret);
-		exit(1);
+		return 1;
 	} else
 		SHOW_PROGRESS(output," OK, Kobil control message sent\n");
 	return 1;
@@ -1011,7 +1017,7 @@ int switchQisdaMode () {
 	ret = usb_control_msg(devh, 0x40, 0x04, 00000000, 0, buffer, 16, 1000);
 	if (ret != 0) {
 		fprintf(stderr, "Error: sending Qisda control message failed (error %d). Aborting.\n\n", ret);
-		exit(1);
+		return 1;
 	} else
 		SHOW_PROGRESS(output," OK, Qisda control message sent\n");
 	return 1;
@@ -1032,7 +1038,7 @@ int switchSonyMode ()
 	ret = usb_control_msg(devh, 0xc0, 0x11, 2, 0, buffer, 3, 100);
 	if (ret < 0) {
 		fprintf(stderr, "Error: sending Sony control message failed (error %d). Aborting.\n\n", ret);
-		exit(1);
+		return 1;
 	} else
 		SHOW_PROGRESS(output," OK, control message sent, waiting for device to return ...\n");
 
@@ -1153,7 +1159,7 @@ int switchSequansMode() {
 	ret = usb_control_msg(devh, USB_TYPE_VENDOR | USB_RECIP_DEVICE, SQN_SET_DEVICE_MODE_REQUEST, SQN_CUSTOM_DEVICE_MODE, 0, buffer, 0, 1000);
 	if (ret != 0) {
 		fprintf(stderr, "Error: sending Sequans request failed (error %d). Aborting.\n\n", ret);
-	    exit(1);
+	    return 1;
 	} else
 		SHOW_PROGRESS(output," OK, Sequans request was sent\n");
 
@@ -1256,7 +1262,7 @@ int detachDriver()
 int sendMessage(char* message, int count)
 {
 	int message_length, ret;
-
+	SHOW_PROGRESS(output,"In Send Message\n");
 	if (strlen(message) % 2 != 0) {
 		fprintf(stderr, "Error: MessageContent %d hex string has uneven length. Skipping ...\n", count);
 		return 1;
@@ -1404,6 +1410,7 @@ int checkSuccess()
 int write_bulk(int endpoint, char *message, int length)
 {
 	int ret;
+	SHOW_PROGRESS(output,"In Write Bulk\n");
 	ret = usb_bulk_write(devh, endpoint, message, length, 3000);
 	if (ret >= 0 ) {
 		SHOW_PROGRESS(output," OK, message successfully sent\n");
@@ -1440,7 +1447,7 @@ void release_usb_device(int dummy) {
 	}
 	if (sysmode)
 		closelog();
-	exit(0);
+	return ;
 
 }
 
@@ -1712,7 +1719,7 @@ char* ReadParseParam(const char* FileName, char *VariableName)
 			}
 			if (file==NULL) {
 				fprintf(stderr, "Error: Could not find file %s\n\n", FileName);
-				exit(1);
+				return NULL;
 			} else {
 				token = fgets(Str, LINE_DIM-1, file);
 			}

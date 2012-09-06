@@ -64,7 +64,7 @@ void deviceDescription();
 int deviceInquire();
 void resetUSB();
 void release_usb_device(int dummy);
-
+int usb_modeswitch_main(int argc, char **argv) ;
 // Boolean
 #define  and     &&
 #define  or      ||
