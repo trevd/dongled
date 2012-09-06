@@ -64,7 +64,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
    uevent.c \
    dongled.c \
-   usb_modeswitch.c \
+   modeswitch.c \
 
    
 LOCAL_C_INCLUDES += \

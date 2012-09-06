@@ -1,3 +1,12 @@
+/*
+ *  dongled.c - contains the entry point for the dongled native service
+ *  this handles pre-initialization of usb dongles. The dongled service can 
+ *  be configuration to use external configuration files as well as an external usb_modeswitch
+ *  binary or service.
+ *  ro.dongled.external.usb_modeswitch = 1
+ *  ro.dongled.external.override = 1
+ *   
+ */
 #define LOG_TAG "dongled"
 #include <stdio.h>
 #include <stdlib.h>

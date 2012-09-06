@@ -20,10 +20,8 @@
 #include <linux/types.h>
 #include <linux/netlink.h>
 #include <cutils/properties.h>
-#include <libusb-0.1.12/usb.h>
-#include "usb_modeswitch.h"
+#include "modeswitch.h"
 #include "uevent.h"
-#define DESCR_MAX 129
 struct uevent { 
 	const char *action;
 	const char *path;
@@ -39,31 +37,15 @@ struct uevent {
 	int minor;
 	unsigned int seqnum;
 };
-struct usb_modeswitch_config {
-	int vendor;
-	int product;
-	char *message;
-} usbmsconfigs[] = { 0x12d1,0x1c0b,"55534243123456780000000000000011062000000100000000000000000000" };
-struct usb_dev_handle *devh;
+
 void die(char *s)
 {
 	ALOGI("dying with %s",s);
 	write(2,s,strlen(s));
 	exit(1);
 }
-int find_config(int vendor,int product)
-{	
-	int counter = 0,totalconfigs=1, returnvalue =-1;
-	for(counter =0; counter < totalconfigs ;counter ++)
-	{
-		if((usbmsconfigs[counter].vendor==vendor) && (usbmsconfigs[counter].product==product))
-		{
-			returnvalue = counter;
-			break;
-		}
-	}
-	return returnvalue;
-}
+
+
 int get_int_from_hexstring(const char* hexString)
 {
 	// chuck it on the heap, why not eh?
@@ -78,45 +60,7 @@ void print_configs(){
 	ALOGD("C:%d,%d,%s\n",usbmsconfigs[0].vendor,usbmsconfigs[0].product,usbmsconfigs[0].message);
 	fprintf(stdout,"C:%x,%x,%s\n",usbmsconfigs[0].vendor,usbmsconfigs[0].product,usbmsconfigs[0].message);
 }
-void get_usb_devices()
-{
-	
-	char iproduct[DESCR_MAX];
-	struct usb_bus *busses;
-	struct usb_bus *bus;
-	usb_find_busses();
-    	usb_find_devices();
-    
-    	busses = usb_get_busses();
-    	int c, i, a, ret;
-    	for (bus = busses; bus; bus = bus->next) {
-    		struct usb_device *dev;
-    
-    		for (dev = bus->devices; dev; dev = dev->next) {
-    			/* Check if this device is a printer */
-			ALOGD("Dev DeviceClass %04x %04x\n",dev->descriptor.idVendor,dev->descriptor.idProduct);
-			fprintf(stdout,"Dev DeviceClass %04x %04x\n",dev->descriptor.idVendor,dev->descriptor.idProduct);
-			
-    			if (dev->descriptor.bDeviceClass == 7) {
-    				/* Open the device, claim the interface and do your processing */
-    			}
-    
-    			/* Loop through all of the configurations */
-    			for (c = 0; c < dev->descriptor.bNumConfigurations; c++) {
-    				/* Loop through all of the interfaces */
-    				for (i = 0; i < dev->config[c].bNumInterfaces; i++) {
-    					/* Loop through all of the alternate settings */
-    					for (a = 0; a < dev->config[c].interface[i].num_altsetting; a++) {
-    						/* Check if this interface is a printer */
-    						if (dev->config[c].interface[i].altsetting[a].bInterfaceClass == 7) {
-    							/* Open the device, set the alternate setting, claim the interface and do your processing */
-    						}
-    					}
-    				}
-    			}
-    		}
-    	}
-}
+
 static void start_service(const char * service_name)
 {
 	property_set("ctl.start",service_name);
@@ -133,7 +77,7 @@ static void write_uevent_logcat(struct uevent *uevent,const char* label)
 }
 static void handle_uevent(struct uevent *uevent)
 {
-	
+	// We need to handle the  
 	int c =uevent->action[0];
 	switch(c)
 	{
@@ -141,8 +85,9 @@ static void handle_uevent(struct uevent *uevent)
 			if( strlen(uevent->type) == 0 )	{
 				// if no type is specified then look for a tty subsystem 
 				if (  strlen(uevent->subsystem) == 0 ){ // handle zero length subsystem
-					return ; // Undefined type
+					return ; // No Subsystem and No type means nothing doing
 				}else if( !strncmp(uevent->subsystem,"tty",strlen(uevent->subsystem))){
+					// got a tty subsystem
 					if(!strncmp(uevent->name,"ttyUSB0",7)){
 						property_set("ril.pppd_tty", "/dev/ttyUSB0");
 						return ;
@@ -160,11 +105,46 @@ static void handle_uevent(struct uevent *uevent)
 			}else{
 				if( !strncmp(uevent->type,"usb_device",strlen(uevent->type)))
 				{
+					// i'm not a massive fan of sleeping, it implies an unknown quantity
+					// however we need to give the usb subsystem a chance to catch up
+					// there is another option of handling the uevent->type = "usb_interface"
+					// but that is fired multiple times where as usb_device is raised once
+					sleep(2);
 					
+					// convert the vendor and product to int, this is more convient
+					// than messing around with strings
 					int vendor = get_int_from_hexstring(uevent->vendor_id);
 					int product = get_int_from_hexstring(uevent->product_id);
-					int config_index = find_config(vendor,product);
+					// Check if we have an internal configuration for this device
+					int config_index = get_usb_switch_configuration_index(vendor,product);
 					ALOGD("Config Index:%d",config_index);
+					if(config_index == -1){
+						ALOGD("No Config For UsbDevice %04x_%04x",vendor,product);	
+						return ;
+					}
+					// we've got a config for this usb devices, try to get an handle on it
+					struct usb_device* usb_device = get_usb_device(vendor,product);
+					if(usb_device == NULL)
+					{
+						ALOGD("Usb Not Found On bus %04x_%04x",vendor,product);
+						return ;
+					}
+					ALOGD("Found Usb Device %04x_%04x",vendor,product);
+					struct usb_dev_handle* usb_device_handle = usb_open(usb_device);
+					if(usb_device_handle == NULL)
+					{
+						ALOGD("usb_open Failed For %04x_%04x",vendor,product);
+						return ;
+					}
+					int interface = usb_device->config[0].interface[0].altsetting[0].bInterfaceNumber;
+					int usb_device_config = get_usb_device_configuration(usb_device_handle);
+					ALOGD("Current Configuration For %04x_%04x %d",vendor,product,usb_device_config);
+					//usb_device_scsi_inquiry(dev_handle);
+					if(!usb_close(usb_device_handle))
+					{
+						ALOGD("usb_close successful For %04x_%04x",vendor,product);
+						return ;
+					}
 					return;
 					
 					//if(!strncmp(uevent->vendor_id,"12d1",strlen(uevent->vendor_id)))
