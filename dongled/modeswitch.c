@@ -14,8 +14,169 @@
 #define USB_DIR_OUT 0x00
 #define USB_DIR_IN  0x80
 #define BUF_SIZE 4096
-/* Detach driver
- */
+#define LINE_DIM 1024
+
+int hex2num(char c)
+{
+	if (c >= '0' && c <= '9')
+	return c - '0';
+	if (c >= 'a' && c <= 'f')
+	return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F')
+	return c - 'A' + 10;
+	return -1;
+}
+
+
+int hex2byte(const char *hex)
+{
+	int a, b;
+	a = hex2num(*hex++);
+	if (a < 0)
+		return -1;
+	b = hex2num(*hex++);
+	if (b < 0)
+		return -1;
+	return (a << 4) | b;
+}
+
+int hexstr2bin(const char *hex, char *buffer, int len)
+{
+	int i;
+	int a;
+	const char *ipos = hex;
+	char *opos = buffer;
+
+	for (i = 0; i < len; i++) {
+	a = hex2byte(ipos);
+	if (a < 0)
+		return -1;
+	*opos++ = a;
+	ipos += 2;
+	}
+	return 0;
+}
+
+int write_bulk(usb_dev_handle* usb_device_handle,int endpoint, char *message, int length)
+{
+	int ret;
+	ALOGD("In Write Bulk\n");
+	ret = usb_bulk_write(usb_device_handle, endpoint, message, length, 3000);
+	if (ret >= 0 ) {
+		ALOGD(" OK, message successfully sent\n");
+	} else
+		if (ret == -19) {
+			ALOGD(" Device seems to have vanished right after sending. Good.\n");
+		} else
+			ALOGD(" Sending the message returned error %d. Trying to continue\n", ret);
+	return ret;
+
+}
+
+int read_bulk(usb_dev_handle* usb_device_handle,int endpoint, char *buffer, int length)
+{
+	int ret;
+	ret = usb_bulk_read(usb_device_handle, endpoint, buffer, length, 3000);
+	usb_bulk_read(usb_device_handle, endpoint, buffer, 13, 100);
+	if (ret >= 0 ) {
+		ALOGD("  OK, response successfully read (%d bytes).\n", ret);
+	} else
+		if (ret == -19) {
+			ALOGD(" Device seems to have vanished after reading. Good.\n");
+		} else
+			ALOGD(" Response reading got error %d\n", ret);
+	return ret;
+
+}
+int usb_send_message(usb_dev_handle* usb_device_handle,char* message,int message_endpoint)
+{
+	int message_length, ret;
+	char byte_string[LINE_DIM/2];
+	ALOGD("In Send Message\n");
+	if (strlen(message) % 2 != 0) {
+		ALOGD( "Error: MessageContent hex string has uneven length. Skipping ...\n");
+		return 1;
+	}
+	message_length = strlen(message) / 2;
+	if ( hexstr2bin(message, byte_string, message_length) == -1) {
+		ALOGD( "Error: MessageContent %s\n is not a hex string. Skipping ...\n",  message);
+		return 1;
+	}
+	ALOGD("Trying to send message to endpoint 0x%02x ...\n",  message_endpoint);
+	ret = write_bulk(usb_device_handle,message_endpoint, byte_string, message_length);
+	if (ret == -19)
+		return 1;
+
+	return 0;
+}
+
+int usb_switch_send_message (usb_dev_handle* usb_device_handle,int inquire_device,int switch_configuration_index,int interface,int message_endpoint,int response_endpoint)
+{
+	const char* command_header = "55534243";
+	int release_delay =0 ;
+	int ret, i;
+	char* message_content = switch_configurations[switch_configuration_index].message;
+	
+
+	/* May be activated in future versions */
+//	if (MessageContent2[0] != '\0' || MessageContent3[0] != '\0')
+//		NeedResponse = 1;
+	ALOGD("switchSendMessage\n");
+	ALOGD("Setting up communication with interface %d\n", interface);
+	if (inquire_device != 2) {
+		ALOGD("Inq !=2\n");
+		ret = usb_claim_interface(usb_device_handle, interface);
+		if (ret != 0) {
+			ALOGD(" Could not claim interface (error %d). Skipping message sending\n", ret);
+			return 0;
+		}
+	}
+	ALOGD("Msg=%s\n",message_content);
+	usb_clear_halt(usb_device_handle, message_endpoint);
+	ALOGD("Using endpoint 0x%02x for message sending ...\n", message_endpoint);
+	if ( usb_send_message(usb_device_handle,message_content,message_endpoint) )
+	{
+		goto skip;
+
+		//if (NeedResponse) {
+		//	if ( strstr(message_content,command_header) != NULL ) {
+				// UFI command
+		//		ALOGD("Reading the response to message %d (CSW) ...\n", i+1);
+		//		ret = read_bulk(response_endpoint, ByteString, 13);
+		//	} else {
+		//		// Other bulk transfer
+		//		ALOGD("Reading the response to message %d ...\n", i+1);
+		//		ret = read_bulk(response_endpoint, ByteString, strlen(message_content)/2 );
+		//	}
+		//	if (ret < 0)
+		//		goto skip;
+		//}
+	}
+
+	ALOGD("Resetting response endpoint 0x%02x\n", response_endpoint);
+	ret = usb_clear_halt(usb_device_handle, response_endpoint);
+	if (ret)
+		ALOGD(" Could not reset endpoint (probably harmless): %d\n", ret);
+	ALOGD("Resetting message endpoint 0x%02x\n", message_endpoint);
+	ret = usb_clear_halt(usb_device_handle,  message_endpoint);
+	if (ret)
+		ALOGD(" Could not reset endpoint (probably harmless): %d\n", ret);
+	usleep(200000);
+	if (release_delay) {
+		ALOGD("Blocking the interface for %d ms before releasing ...\n", release_delay);
+		usleep(release_delay*1000);
+	}
+	ret = usb_release_interface(usb_device_handle, interface);
+	if (ret)
+		goto skip;
+	return 1;
+
+skip:
+	ALOGD(" Device is gone, skipping any further commands\n");
+	usb_close(usb_device_handle);
+	usb_device_handle = 0;
+	return 2;
+}
 int detach_device_driver(usb_dev_handle* usb_device_handle,int interface)
 {
 	int ret;
@@ -252,9 +413,10 @@ void process_add_usb_device_uevent(int vendor,int product)
 	int message_endpoint = find_first_bulk_output_endpoint(usb_device);
 	ALOGD("usb_device %04x_%04x  message_endpoint %x",vendor,product, message_endpoint );
 	int response_endpoint = find_first_bulk_input_endpoint(usb_device);
-	ALOGD("usb_device %04x_%04x  response_endpoint  %x",vendor,product, response_endpoint );
+	ALOGD("usb_device %04x_%04x  response_endpoint %x",vendor,product, response_endpoint );
 	detach_device_driver(usb_device_handle,interface);
-	usb_device_scsi_inquiry(usb_device_handle,switch_configuration_index,interface,message_endpoint,response_endpoint);
+	int inquire_device = usb_device_scsi_inquiry(usb_device_handle,switch_configuration_index,interface,message_endpoint,response_endpoint);
+	usb_switch_send_message(usb_device_handle,inquire_device,switch_configuration_index,interface,message_endpoint,response_endpoint);
 	if(!usb_close(usb_device_handle))
 	{
 		ALOGD("usb_close successful For %04x_%04x",vendor,product);

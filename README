@@ -15,9 +15,3 @@ the usb_modeswitch. If the modeswitch is successful then the ril-daemon service 
 process of establishing a connection. A devices validality is first looked for in the daemons internal list 
 for valid modeswitch configuaration. If none is found internally a number of known location are.
 This retains the flexibility of the usb_modeswitch configuration files while wrapping the known good configuaration.
-
-Madness:
-This service has a static dependency on libusb-1.x . Albeit a slighty tweaked version for Android.
-This service has a static dependency on libusb-0.1.x , Yes you read that right.
-It is probably breaking some fundamental law of the universe some similar to the ghostbusters crossing
-the streams.

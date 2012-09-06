@@ -112,19 +112,7 @@ static int property_test(const char* name,char* testvalue )
 	ALOGD("Result of Comparison %u",res);
 	return res;
 }
-static void try_usb_modeswitch(const char * vendor_id,const char * product_id,const char * modeswitch_d){
 
-        char * config_filename = bprintf("%s/%04s_%04sx",modeswitch_d,vendor_id ,product_id);
-        ALOGD("Looking For usb_modeswitch config in location %s",config_filename);
-	if(!file_exists(config_filename)){ // usb_modeswitch file not found for this device
-	        ALOGD("Config Not Found");
-                        return ;
-	}
-	char * usb_modeswitch_command = bprintf("switch_ms_to_3g:-v0x%04s -p0x%04s -c%s",vendor_id ,product_id,config_filename);
-	//start_service(usb_modeswitch_command);							
-	free(usb_modeswitch_command);
-	free(config_filename);
-}
 
 
  
@@ -145,52 +133,10 @@ static void parse_hotplug_info(struct hotplug_info *hotplug_info)
 
 
 int coldboot(int print_list,const char * modeswitch_d){
+		
+	// This needs to be fired off on another thread
+	return 0;
 
-        libusb_device                    **devList = NULL;
-        libusb_device                    *devPtr = NULL;
-        libusb_device_handle             *devHandle = NULL;
-        struct libusb_device_descriptor  devDesc;
-        unsigned char              strDesc[256];
-        ssize_t                    numUsbDevs = 0;      // pre-initialized scalars
-        ssize_t                    idx = 0;
-        int                        retVal = 0;
-
-        retVal = libusb_init (NULL);
-        numUsbDevs = libusb_get_device_list (NULL, &devList);
-        
-        while (idx < numUsbDevs)
-        {
-                devPtr = devList[idx];
-
-                if ( (retVal = libusb_open (devPtr, &devHandle) ) != LIBUSB_SUCCESS) 
-                        break;
-
-
-                if ( ( retVal = libusb_get_device_descriptor (devPtr, &devDesc) )!= LIBUSB_SUCCESS)   
-                        break;
-                        
-                char* vendorid = malloc(4);
-                char* productid= malloc(4);;
-                sprintf(vendorid,"%04x",devDesc.idVendor);
-                sprintf(productid,"%04x",devDesc.idProduct);
-                if( print_list == 0 )
-                        printf("iVendor = %04x idProduct = %04x\n", devDesc.idVendor,devDesc.idProduct);                       
-                else
-                        try_usb_modeswitch(vendorid, productid,modeswitch_d);                 
-                free(vendorid);free(productid);
-
-                ALOGD ("   iVendor = %04x idProduct = %04x\n", devDesc.idVendor,devDesc.idProduct);
-                libusb_close (devHandle);
-                devHandle = NULL;
-                idx++;
-                
-
-        }  // end of while loop
-        if (devHandle != NULL)
-                libusb_close (devHandle);
-
-        libusb_exit (NULL);
-        return retVal;
 }
 int main(int argc, char *argv[])
 {
