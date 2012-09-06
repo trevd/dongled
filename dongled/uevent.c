@@ -6,6 +6,7 @@
  */
 
 #define LOG_TAG "dongled"
+#include <libusb-0.1.12/usb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,8 +21,8 @@
 #include <linux/types.h>
 #include <linux/netlink.h>
 #include <cutils/properties.h>
-#include "modeswitch.h"
 #include "uevent.h"
+void process_add_usb_device_uevent(int vendor,int product);
 struct uevent { 
 	const char *action;
 	const char *path;
@@ -55,10 +56,6 @@ int get_int_from_hexstring(const char* hexString)
 	int result = (int)strtol(hexString2,NULL,0);
 	free(hexString2);
 	return result;
-}
-void print_configs(){
-	ALOGD("C:%d,%d,%s\n",usbmsconfigs[0].vendor,usbmsconfigs[0].product,usbmsconfigs[0].message);
-	fprintf(stdout,"C:%x,%x,%s\n",usbmsconfigs[0].vendor,usbmsconfigs[0].product,usbmsconfigs[0].message);
 }
 
 static void start_service(const char * service_name)
@@ -115,37 +112,8 @@ static void handle_uevent(struct uevent *uevent)
 					// than messing around with strings
 					int vendor = get_int_from_hexstring(uevent->vendor_id);
 					int product = get_int_from_hexstring(uevent->product_id);
-					// Check if we have an internal configuration for this device
-					int config_index = get_usb_switch_configuration_index(vendor,product);
-					ALOGD("Config Index:%d",config_index);
-					if(config_index == -1){
-						ALOGD("No Config For UsbDevice %04x_%04x",vendor,product);	
-						return ;
-					}
-					// we've got a config for this usb devices, try to get an handle on it
-					struct usb_device* usb_device = get_usb_device(vendor,product);
-					if(usb_device == NULL)
-					{
-						ALOGD("Usb Not Found On bus %04x_%04x",vendor,product);
-						return ;
-					}
-					ALOGD("Found Usb Device %04x_%04x",vendor,product);
-					struct usb_dev_handle* usb_device_handle = usb_open(usb_device);
-					if(usb_device_handle == NULL)
-					{
-						ALOGD("usb_open Failed For %04x_%04x",vendor,product);
-						return ;
-					}
-					int interface = usb_device->config[0].interface[0].altsetting[0].bInterfaceNumber;
-					int usb_device_config = get_usb_device_configuration(usb_device_handle);
-					ALOGD("Current Configuration For %04x_%04x %d",vendor,product,usb_device_config);
-					//usb_device_scsi_inquiry(dev_handle);
-					if(!usb_close(usb_device_handle))
-					{
-						ALOGD("usb_close successful For %04x_%04x",vendor,product);
-						return ;
-					}
-					return;
+					process_add_usb_device_uevent(vendor,product);
+					return ;
 					
 					//if(!strncmp(uevent->vendor_id,"12d1",strlen(uevent->vendor_id)))
 					//	if(!strncmp(uevent->product_id,"1c0b",strlen(uevent->product_id)))
