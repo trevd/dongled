@@ -75,6 +75,7 @@ static void write_uevent_logcat(struct uevent *uevent,const char* label)
 static void handle_uevent(struct uevent *uevent)
 {
 	// We need to handle the  
+	write_uevent_logcat(uevent,"DONGLED");
 	int c =uevent->action[0];
 	switch(c)
 	{
