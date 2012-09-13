@@ -9,6 +9,7 @@
 #define LOG_TAG "dongled"
 #include <cutils/log.h>
 #include <libusb-0.1.12/usb.h>
+#include <usbhost/usbhost.h>
 #include "modeswitch.h"
 #define DESCR_MAX 129
 #define USB_DIR_OUT 0x00
@@ -438,7 +439,7 @@ void process_add_usb_device_uevent(int vendor,int product)
 	}
 	return;
 }
-void check_usb_devices()
+void check_usb_devices_old()
 {
 	struct usb_bus *busses;
 	struct usb_bus *bus;
@@ -454,4 +455,10 @@ void check_usb_devices()
     		}
     	}
     	return;
+}
+void check_usb_devices()
+{
+	//
+	 struct usb_host_context *ctx;
+	 
 }

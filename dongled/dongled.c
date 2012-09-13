@@ -10,13 +10,14 @@
 #define LOG_TAG "dongled"
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <cutils/log.h>
 #include <sys/stat.h>
 #include <pthread.h>
 #include <cutils/properties.h>
-#include <libusb-0.1.12/usb.h>
-#include "uevent.h"
+#include <usbhost/usbhost.h>
+//#include "uevent.h"
 void check_usb_devices();
 pthread_t s_tid_coldboot;
 void die(char *s);
@@ -136,17 +137,66 @@ static void *coldboot(void *param){
 		
 	// This needs to be fired off on another thread
 	ALOGI("Dongled Service ColdBoot\n");
-	check_usb_devices();
+	//check_usb_devices();
 	return 0;
 
 }
+static int dongled_device_removed(void *client_data)
+{
+	ALOGI("Dongled Device Removed\n");
+	return 0;
+}
+static int lsusb_discovery_done(void *client_data)
+{
+    ALOGI("Dongled Device Discovery Done\n");
+    return 0;
+}
+static int dongled_device_added(const char *dev_name, void *client_data)
+{
+	struct usb_device *dev = usb_device_open(dev_name);
 
+    ALOGI("Dongled Device Added Opening USB Device %s\n",dev_name);
+    if (!dev) {
+        ALOGE("can't open device %s: %s\n", dev_name, strerror(errno));
+        return 0;
+    }
+
+   
+        uint16_t vid, pid;
+        char *mfg_name, *product_name, *serial;
+
+        vid = usb_device_get_vendor_id(dev);
+        pid = usb_device_get_product_id(dev);
+        mfg_name = usb_device_get_manufacturer_name(dev);
+        product_name = usb_device_get_product_name(dev);
+        serial = usb_device_get_serial(dev);
+
+        ALOGI("%s: %04x:%04x %s %s %s\n", dev_name, vid, pid,mfg_name, product_name, serial);
+
+        free(mfg_name);
+        free(product_name); 
+        free(serial);
+    usb_device_close(dev);
+
+    return 0;
+}
 int main(int argc, char *argv[])
 {
-	usb_init();
-	 pthread_create(&s_tid_coldboot, NULL, coldboot, NULL);
+	//usb_init();
 	ALOGI("Dongled Service Start argc:%d\n",argc);
-	start_uevent_polling();
+	struct usb_host_context *ctx;
+	ctx = usb_host_init();
+	if (!ctx) {
+		perror("usb_host_init:");
+		return 1;
+	}else {
+		ALOGI("Got usb_host_context\n");
+	}
+	usb_host_run(ctx,dongled_device_added,dongled_device_removed, lsusb_discovery_done,NULL);
+	//pthread_create(&s_tid_coldboot, NULL, coldboot, NULL);
+	 usb_host_cleanup(ctx);
+	ALOGI("cleaning up usb_host_context\n");
+	//start_uevent_polling();
 	return 0;
         
 }
